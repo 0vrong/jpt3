@@ -7,6 +7,7 @@ import com.example.resourcemonitor.model.MemoryInfo;
 import com.example.resourcemonitor.model.MonitoringSettings;
 
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 public class MonitoringService {
@@ -24,12 +25,24 @@ public class MonitoringService {
     }
 
     public void checkResources(MonitoringSettings settings) {
-        logService.log("Запущена проверка ресурсов");
-        checkDisks(settings);
-        checkMemory(settings);
+        StringBuilder logText = new StringBuilder();
+        String time = LocalDateTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss"));
+
+        logText.append("[")
+                .append(time)
+                .append("] INFO === Resource Check ===")
+                .append(System.lineSeparator());
+
+        checkDisks(settings, logText);
+        checkMemory(settings, logText);
+
+        String finalLogText = logText.toString().trim();
+
+        System.out.println(finalLogText);
+        logService.log(finalLogText);
     }
 
-    private void checkDisks(MonitoringSettings settings) {
+    private void checkDisks(MonitoringSettings settings, StringBuilder logText) {
         List<DiskInfo> disks = diskMonitorService.getAllDisks();
 
         for (DiskInfo disk : disks) {
@@ -42,15 +55,18 @@ public class MonitoringService {
             boolean percentExceeded = disk.getUsedPercent() >= diskSetting.getPercentLimit();
             boolean absoluteExceeded = disk.getFreeSpaceGb() <= diskSetting.getAbsoluteLimitGb();
 
-            String infoMessage = "Диск " + disk.getDiskName()
-                    + ", использовано %: " + disk.getUsedPercent()
-                    + ", свободно ГБ: " + disk.getFreeSpaceGb();
-
-            System.out.println(infoMessage);
-            logService.log(infoMessage);
+            logText.append("Disk ")
+                    .append(clearDiskName(disk.getDiskName()))
+                    .append(": ")
+                    .append(String.format("%.1f", disk.getUsedPercent()))
+                    .append("% | free: ")
+                    .append(String.format("%.1f", disk.getFreeSpaceGb()))
+                    .append(" GB");
 
             if (percentExceeded || absoluteExceeded) {
-                String alertMessage = "ПРЕВЫШЕН ПОРОГ ПО ДИСКУ: " + disk.getDiskName();
+                logText.append(" | Превышен порог диска");
+
+                String alertMessage = "Превышен порог диска: " + disk.getDiskName();
 
                 AlertEvent event = new AlertEvent(
                         "DISK",
@@ -59,10 +75,41 @@ public class MonitoringService {
                         LocalDateTime.now()
                 );
 
-                logService.log(alertMessage);
                 notificationService.notify(event);
             }
+
+            logText.append(System.lineSeparator());
         }
+    }
+
+    private void checkMemory(MonitoringSettings settings, StringBuilder logText) {
+        MemoryInfo memoryInfo = memoryMonitorService.getMemoryInfo();
+
+        boolean percentExceeded = memoryInfo.getUsedPercent() >= settings.getMemoryPercentLimit();
+        boolean absoluteExceeded = memoryInfo.getFreeMemoryGb() <= settings.getMemoryAbsoluteLimit();
+
+        logText.append("Memory: ")
+                .append(String.format("%.1f", memoryInfo.getUsedPercent()))
+                .append("% | free: ")
+                .append(String.format("%.1f", memoryInfo.getFreeMemoryGb()))
+                .append(" GB");
+
+        if (percentExceeded || absoluteExceeded) {
+            logText.append(" | Превышен порог памяти");
+
+            String alertMessage = "Превышен порог памяти";
+
+            AlertEvent event = new AlertEvent(
+                    "MEMORY",
+                    "RAM",
+                    alertMessage,
+                    LocalDateTime.now()
+            );
+
+            notificationService.notify(event);
+        }
+
+        logText.append(System.lineSeparator());
     }
 
     private DiskSetting findDiskSetting(MonitoringSettings settings, String diskName) {
@@ -74,30 +121,7 @@ public class MonitoringService {
         return null;
     }
 
-    private void checkMemory(MonitoringSettings settings) {
-        MemoryInfo memoryInfo = memoryMonitorService.getMemoryInfo();
-
-        boolean percentExceeded = memoryInfo.getUsedPercent() >= settings.getMemoryPercentLimit();
-        boolean absoluteExceeded = memoryInfo.getFreeMemoryGb() <= settings.getMemoryAbsoluteLimit();
-
-        String infoMessage = "Память, использовано %: " + memoryInfo.getUsedPercent()
-                + ", свободно ГБ: " + memoryInfo.getFreeMemoryGb();
-
-        System.out.println(infoMessage);
-        logService.log(infoMessage);
-
-        if (percentExceeded || absoluteExceeded) {
-            String alertMessage = "ПРЕВЫШЕН ПОРОГ ПО ПАМЯТИ";
-
-            AlertEvent event = new AlertEvent(
-                    "MEMORY",
-                    "RAM",
-                    alertMessage,
-                    LocalDateTime.now()
-            );
-
-            logService.log(alertMessage);
-            notificationService.notify(event);
-        }
+    private String clearDiskName(String diskName) {
+        return diskName.replace("\\", "");
     }
 }

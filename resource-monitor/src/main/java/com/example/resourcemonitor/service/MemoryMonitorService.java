@@ -1,14 +1,18 @@
 package com.example.resourcemonitor.service;
 
 import com.example.resourcemonitor.model.MemoryInfo;
+import com.sun.management.OperatingSystemMXBean;
+
+import java.lang.management.ManagementFactory;
 
 public class MemoryMonitorService {
 
     public MemoryInfo getMemoryInfo() {
-        Runtime runtime = Runtime.getRuntime();
+        OperatingSystemMXBean osBean =
+                (OperatingSystemMXBean) ManagementFactory.getOperatingSystemMXBean();
 
-        long totalBytes = runtime.totalMemory();
-        long freeBytes = runtime.freeMemory();
+        long totalBytes = osBean.getTotalMemorySize();
+        long freeBytes = osBean.getFreeMemorySize();
         long usedBytes = totalBytes - freeBytes;
 
         double totalGb = bytesToGb(totalBytes);
