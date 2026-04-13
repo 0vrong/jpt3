@@ -1,6 +1,9 @@
 # JRE/JDK files
 resource-monitor/jre/
 
+# Distribution files
+resource-monitor/dist/
+
 # IDE
 .idea/
 .vscode/
